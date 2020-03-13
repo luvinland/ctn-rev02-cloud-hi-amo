@@ -27,20 +27,22 @@
 
 uint32_t g_nCurrentGroup = 0;
 
+uint8_t g_nStopRead = 0;
+
 #if 1 // Jace. 191014. Add control interface using UART0.
-#define TRIGGER     0x01
-#define TIMEOUT     0x02
-#define POWEROFF    0x10
-#define POWERON     0x11
-#define FAN1        0x21
-#define FAN2        0x22
-#define FAN3        0x23
-#define TIMER1H     0x31
-#define TIMER4H     0x34
-#define TIMER8H     0x38
-#define AIMODE      0x41
-#define UNMUTE      0x50
-#define MUTE        0x51
+#define TRIGGER     (0xF1)
+#define TIMEOUT     (0xF2)
+#define POWEROFF    (0x10)
+#define POWERON     (0x11)
+#define FAN1        (0x21)
+#define FAN2        (0x22)
+#define FAN3        (0x23)
+#define TIMER1H     (0x31)
+#define TIMER4H     (0x34)
+#define TIMER8H     (0x38)
+#define AIMODE      (0x41)
+//#define UNMUTE      (0x50)
+//#define MUTE        (0x51)
 
 BOOL g_nPowerOn = FALSE;
 BOOL g_nMute = FALSE;
@@ -174,24 +176,8 @@ static void delay(uint32_t cycles)
   }
 }
 
-typedef struct {
-	uint8_t u8DeviceAddr;
-	uint8_t pau8Cmd;
-	uint8_t endFlag;
-} S_ESP_I2CCTRL;
-
-#if 1 // Jace. 191107. SPI2_I2S intput/output, PWM, I2C Master working with ESP32
-extern volatile S_ESP_I2CCTRL s_ESP_I2CCtrl;
-
-void esp_i2c_command(uint8_t cmd)
-{
-    s_ESP_I2CCtrl.u8DeviceAddr = 0x28;
-    s_ESP_I2CCtrl.pau8Cmd = cmd;
-    I2C_START(I2C0);
-    while(s_ESP_I2CCtrl.endFlag == 0);
-    s_ESP_I2CCtrl.endFlag = 0;
-}
-#endif
+extern void esp_i2c_command(uint8_t cmd);
+extern void esp_i2c_read(void);
 
 #if 0 // Jace. 191107. SPI2_I2S intput/output, PWM, I2C Master working with ESP32 // Jace. 191118. Playback voice prompt using ESP32.
 #define     EMBED_SAMPLE_RATE   8000
@@ -305,6 +291,10 @@ int main(void)
     // Load the design from the compiled in data
     retVal = awe_fwPacketExecuteArray(&g_AWEInstance, InitCommands, InitCommands_Len, &pPos);
 
+#if 1 // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
+	esp_i2c_read();
+#endif
+
     while(TRUE) 
     {
         // Process any platform tasks
@@ -320,14 +310,28 @@ int main(void)
 				printf("trigger ready\n");
 	            nRet = DoVR_sep((uint32_t)lpbyBin[0], (uint32_t)lpbyBin[1], 0, 0, NULL/*CheckKeyPress*/);  // Jace. 191107. SPI2_I2S intput/output, PWM, I2C Master working with ESP32
 				printf("trigger nRet: %x\n", nRet);
-	            
-				if (nRet <= 0) continue;
-	            else if (nRet >= 1 && nRet <= 3)
-	            {
-	                g_nCurrentGroup = 1;
-					PA0 = 0; //trigger led on
-					esp_i2c_command(TRIGGER);
-	            }
+
+				if(g_nMute) // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
+				{
+					g_u8Recognized = 1;
+				}
+				else
+				{
+					if (nRet <= 0) continue;
+		            else if (nRet >= 1 && nRet <= 3)
+		            {
+#if 1 // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
+		            	I2C0_Close();
+						I2C0_Init();
+#endif
+
+			            g_nStopRead = 1;
+		                g_nCurrentGroup = 1;
+
+						PA0 = 0; //trigger led on
+						esp_i2c_command(TRIGGER);
+		            }
+				}
 	        }
 	        else
 	        {
@@ -339,6 +343,8 @@ int main(void)
 
 				if(nRet >= 1 && nRet <= 18)
 				{
+					g_nStopRead = 0;
+				
 					PA1 = 0; //response led on
 
 					if(g_nPowerOn)

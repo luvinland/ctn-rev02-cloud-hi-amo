@@ -32,6 +32,8 @@
 volatile uint32_t g_msTicks = 0;
 extern INT32 g_target_baudrate;
 
+extern uint8_t g_nStopRead;
+
 DSCT_T     sPDMA_MIC[2];               // Provide PDMA description for ping-pong.
 S_BUFCTRL sInBufCtrl;                  // Buffer control handler.
 S_CIRBUFCTRL sCirBufCtrl; 
@@ -80,26 +82,18 @@ int32_t g_o32DataBuf[AWE_FRAME_SIZE * OUTPUT_CHANNEL_COUNT];    // AWE_FRAME_SIZ
 ******************************************************************/
 int16_t ai16CirBuffer[CIRBUFFER_SIZE];
 
-
 // ******************* Systick Handler **********************
-#define TIMEOUT     0x02
-extern void esp_i2c_command(uint8_t cmd);
+#define TIMEOUT     0xF2
 
-extern volatile uint8_t g_u8Recognized;
-extern volatile uint32_t g_u32FlashCount;
-void SysTick_Handler(void)
-{
-	g_msTicks++; // used for AWE server to count processing MIPS	 
-    if (g_u8Recognized == 1)
-    {
-        if (g_u32FlashCount++ >= 500)
-        {
-            g_u32FlashCount = 0;
-            g_u8Recognized = 0;
-            esp_i2c_command(TIMEOUT);
-        }
-    }
-}
+#if 1 // Jace. 200313. Revision to ctn-rev02-hi-amo.
+typedef struct {
+	uint8_t u8DeviceAddr;
+	uint8_t pau8Cmd;
+	uint8_t endFlag;
+} S_ESP_I2CCTRL;
+
+volatile S_ESP_I2CCTRL s_ESP_I2CCtrl;
+#endif
 
 void Systick_Init(void)
 {
@@ -362,13 +356,261 @@ void DPWM_IRQHandler(void)
 
 }
 
-typedef struct {
-	uint8_t u8DeviceAddr;
-	uint8_t pau8Cmd;
-	uint8_t endFlag;
-} S_ESP_I2CCTRL;
+#if 1 // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
+volatile uint8_t g_u8BykData[4];
+volatile uint8_t g_u8BykCount = 0;
 
-volatile S_ESP_I2CCTRL s_ESP_I2CCtrl;
+typedef void (*I2C_FUNC)(uint32_t u32Status);
+
+static volatile I2C_FUNC s_I2C0HandlerFn = NULL;
+#endif
+
+void I2C0_IRQHandler(void)
+{
+    uint32_t u32Status;
+
+    u32Status = I2C_GET_STATUS(I2C0);
+
+	//printf("I2C0 u32Status[%x]\n", u32Status);
+    if(I2C_GET_TIMEOUT_FLAG(I2C0))
+    {
+        /* Clear I2C0 Timeout Flag */
+        I2C_ClearTimeoutFlag(I2C0);
+    }
+#if 1 // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
+	else
+	{
+		if(s_I2C0HandlerFn != NULL)
+			s_I2C0HandlerFn(u32Status);
+	}
+#else
+	else
+	{
+		if(u32Status == 0x08)                       /* START has been transmitted */
+		{
+			I2C_SET_DATA(I2C0, s_ESP_I2CCtrl.u8DeviceAddr << 1);    /* Write SLA+W to Register I2CDAT */
+			I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+		}
+		else if(u32Status == 0x18)                  /* SLA+W has been transmitted and ACK has been received */
+		{
+			I2C_SET_DATA(I2C0, s_ESP_I2CCtrl.pau8Cmd);
+			I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+		}
+		else if(u32Status == 0x20)                  /* SLA+W has been transmitted and NACK has been received */
+		{
+			I2C_STOP(I2C0);
+			//I2C_START(I2C0);
+			s_ESP_I2CCtrl.endFlag = 1;
+		}
+		else if(u32Status == 0x28)                  /* DATA has been transmitted and ACK has been received */
+		{
+			I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STO_SI);
+			s_ESP_I2CCtrl.endFlag = 1;
+		}
+		else
+		{
+			printf("0x?? return\n");
+		}
+	}
+#endif
+}
+
+#if 1 // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
+extern BOOL g_nMute;
+extern BOOL g_nPowerOn;
+
+/*---------------------------------------------------------------------------------------------------------*/
+/*  I2C Rx Callback Function                                                                               */
+/*---------------------------------------------------------------------------------------------------------*/
+void I2C_MasterRx(uint32_t u32Status)
+{
+	uint8_t i = 0;
+	uint8_t MstRxData = 0;
+
+	if(g_nStopRead)
+	{
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STO_SI);
+	}
+	else
+		{
+	//printf("RX Status[0x%x] ", u32Status);
+	if(u32Status == 0x08)                       /* START has been transmitted and prepare SLA+W */
+	{
+		I2C_SET_DATA(I2C0, (s_ESP_I2CCtrl.u8DeviceAddr << 1));    /* Write SLA+W to Register I2CDAT */
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+	}
+	else if(u32Status == 0x18)                  /* SLA+W has been transmitted and ACK has been received */
+	{
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+	}
+	else if(u32Status == 0x20)                  /* SLA+W has been transmitted and NACK has been received */
+	{
+		I2C_STOP(I2C0);
+		I2C_START(I2C0);
+	}
+	else if(u32Status == 0x28)                  /* DATA has been transmitted and ACK has been received */
+	{
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STA_SI);
+	}
+	else if(u32Status == 0x10)                  /* Repeat START has been transmitted and prepare SLA+R */
+	{
+		I2C_SET_DATA(I2C0, ((s_ESP_I2CCtrl.u8DeviceAddr << 1) | 0x01));   /* Write SLA+R to Register I2CDAT */
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+	}
+	else if(u32Status == 0x40)                  /* SLA+R has been transmitted and ACK has been received */
+	{
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+	}
+	else if(u32Status == 0x48)                  /* Master Receive Address NACK */
+	{
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STA_SI);
+		//printf("\n");
+	}
+	else if(u32Status == 0x58)                  /* DATA has been received and NACK has been returned */
+	{
+		MstRxData = (unsigned char)I2C_GET_DATA(I2C0);
+		//printf("RX data[0x%x]\n", MstRxData);
+
+		if(g_u8BykCount > 3)
+		{
+			for(i = 0; i < 3; i++)
+			{
+				g_u8BykData[i] = g_u8BykData[i + 1];
+			}
+			g_u8BykCount = 3;
+		}
+		g_u8BykData[g_u8BykCount] = MstRxData;
+
+		if(g_u8BykCount == 3)
+		{
+			if((g_u8BykData[0] == 0xF0) && (g_u8BykData[1] == 0xF1) && (g_u8BykData[2] == 0xF2) && (g_u8BykData[3] == 0xF3))
+			{
+				printf("Power Off\n");
+				g_nPowerOn = FALSE;
+			}
+			else if((g_u8BykData[0] == 0xE0) && (g_u8BykData[1] == 0xE1) && (g_u8BykData[2] == 0xE2) && (g_u8BykData[3] == 0xE3))
+			{
+				printf("Power On\n");
+				g_nPowerOn = TRUE;
+			}
+			else if((g_u8BykData[0] == 0x10) && (g_u8BykData[1] == 0x11) && (g_u8BykData[2] == 0x12) && (g_u8BykData[3] == 0x13))
+			{
+				printf("STEP1\n");
+			}
+			else if((g_u8BykData[0] == 0x20) && (g_u8BykData[1] == 0x21) && (g_u8BykData[2] == 0x22) && (g_u8BykData[3] == 0x23))
+			{
+				printf("STEP2\n");
+			}
+			else if((g_u8BykData[0] == 0x30) && (g_u8BykData[1] == 0x31) && (g_u8BykData[2] == 0x32) && (g_u8BykData[3] == 0x33))
+			{
+				printf("STEP3\n");
+			}
+			else if((g_u8BykData[0] == 0xA0) && (g_u8BykData[1] == 0xA1) && (g_u8BykData[2] == 0xA2) && (g_u8BykData[3] == 0xA3))
+			{
+				printf("ESP trigger detect\n");
+				g_nMute = TRUE;
+			}
+			else if((g_u8BykData[0] == 0xB0) && (g_u8BykData[1] == 0xB1) && (g_u8BykData[2] == 0xB2) && (g_u8BykData[3] == 0xB3))
+			{
+				printf("ESP IDLE\n");
+				g_nMute = FALSE;
+			}
+			
+		}
+
+		g_u8BykCount++;
+
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STA_SI); // I2C_CTL_STO_SI	I2C_CTL_STA_SI
+		//s_ESP_I2CCtrl.endFlag = 1;
+	}
+	else
+	{
+		/* TO DO */
+		printf("Rx Status 0x%x is NOT processed\n", u32Status);
+	}
+		}
+}
+
+/*---------------------------------------------------------------------------------------------------------*/
+/*  I2C Tx Callback Function                                                                               */
+/*---------------------------------------------------------------------------------------------------------*/
+void I2C_MasterTx(uint32_t u32Status)
+{
+	//printf("TX Status[0x%x] ", u32Status);
+	if(u32Status == 0x08)						/* START has been transmitted */
+	{
+		I2C_SET_DATA(I2C0, s_ESP_I2CCtrl.u8DeviceAddr << 1);	/* Write SLA+W to Register I2CDAT */
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+	}
+	else if(u32Status == 0x18)					/* SLA+W has been transmitted and ACK has been received */
+	{
+		I2C_SET_DATA(I2C0, s_ESP_I2CCtrl.pau8Cmd);
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
+	}
+	else if(u32Status == 0x20)					/* SLA+W has been transmitted and NACK has been received */
+	{
+		I2C_STOP(I2C0);
+		s_ESP_I2CCtrl.endFlag = 1;
+	}
+	else if(u32Status == 0x28)					/* DATA has been transmitted and ACK has been received */
+	{
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STO_SI);
+		s_ESP_I2CCtrl.endFlag = 1;
+		//printf("\n");
+	}
+#if 1
+	else if(u32Status == 0x40)					/*  */
+	{
+		I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STO_SI);
+		s_ESP_I2CCtrl.endFlag = 1;
+	}
+#endif
+	else
+	{
+		printf("Tx Status 0x%x is NOT processed\n", u32Status);
+
+		SYS_Unlock();
+		SYS_ResetChip();
+		while(1);
+	}
+
+}
+
+void esp_i2c_read(void)
+{
+    s_ESP_I2CCtrl.u8DeviceAddr = 0x28;
+	s_ESP_I2CCtrl.pau8Cmd = NULL;
+
+	s_I2C0HandlerFn = (I2C_FUNC)I2C_MasterRx;
+
+	I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STA);
+
+    //while(s_ESP_I2CCtrl.endFlag == 0);
+	//I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STO_SI);
+}
+
+void esp_i2c_command(uint8_t cmd)
+{
+	printf("cmd[0x%x]\n", cmd);
+    s_ESP_I2CCtrl.u8DeviceAddr = 0x28;
+    s_ESP_I2CCtrl.pau8Cmd = cmd;
+
+	s_ESP_I2CCtrl.endFlag = 0;
+
+	s_I2C0HandlerFn = (I2C_FUNC)I2C_MasterTx;
+
+	I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STA);
+	
+    while(s_ESP_I2CCtrl.endFlag == 0);
+    s_ESP_I2CCtrl.endFlag = 0;
+
+	if(!g_nStopRead)
+	{
+		printf("i2c read start\n");
+		esp_i2c_read();
+	}
+}
+#endif
 
 void I2C0_Init(void)
 {
@@ -403,49 +645,25 @@ void I2C0_Close(void)
     CLK_DisableModuleClock(I2C0_MODULE);
 }
 
-void I2C0_IRQHandler(void)
+#endif
+
+extern volatile uint8_t g_u8Recognized;
+extern volatile uint32_t g_u32FlashCount;
+void SysTick_Handler(void)
 {
-    uint32_t u32Status;
-
-    u32Status = I2C_GET_STATUS(I2C0);
-
-	printf("I2C0 u32Status[%x]\n", u32Status);
-    if(I2C_GET_TIMEOUT_FLAG(I2C0))
+	g_msTicks++; // used for AWE server to count processing MIPS	 
+    if (g_u8Recognized == 1)
     {
-        /* Clear I2C0 Timeout Flag */
-        I2C_ClearTimeoutFlag(I2C0);
-    }
-    else
-    {
-	    if(u32Status == 0x08)                       /* START has been transmitted */
-	    {
-	        I2C_SET_DATA(I2C0, s_ESP_I2CCtrl.u8DeviceAddr << 1);    /* Write SLA+W to Register I2CDAT */
-	        I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
-	    }
-	    else if(u32Status == 0x18)                  /* SLA+W has been transmitted and ACK has been received */
-	    {
-	        I2C_SET_DATA(I2C0, s_ESP_I2CCtrl.pau8Cmd);
-	        I2C_SET_CONTROL_REG(I2C0, I2C_CTL_SI);
-	    }
-	    else if(u32Status == 0x20)                  /* SLA+W has been transmitted and NACK has been received */
-	    {
-	        I2C_STOP(I2C0);
-	        //I2C_START(I2C0);
-			s_ESP_I2CCtrl.endFlag = 1;
-	    }
-	    else if(u32Status == 0x28)                  /* DATA has been transmitted and ACK has been received */
-	    {
-            I2C_SET_CONTROL_REG(I2C0, I2C_CTL_STO_SI);
-			s_ESP_I2CCtrl.endFlag = 1;
-	    }
-		else
-		{
-			printf("0x?? return\n");
-		}
+        if (g_u32FlashCount++ >= 500)
+        {
+	        g_nStopRead = 0;  // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
+			
+            g_u32FlashCount = 0;
+            g_u8Recognized = 0;
+            esp_i2c_command(TIMEOUT);
+        }
     }
 }
-
-#endif
 
 
 // Microphone(AMIC + 85L40)= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
