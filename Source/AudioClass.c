@@ -385,7 +385,7 @@ void AUDIO_ClassRequest(void)
                         // Data stage 
                         USBD_SET_DATA1(EP0);
                         USBD_SET_PAYLOAD_LEN(EP0, 3);
-                        printf("Get_CUR: %08X\n",g_usbd_PlaySampleRate); 
+                        //printf("Get_CUR: %08X\n",g_usbd_PlaySampleRate); 
 
                     }
 					else
@@ -393,15 +393,15 @@ void AUDIO_ClassRequest(void)
                         {
                             uint8_t i;
                             puts("error 1: ");
-                            for(i=0;i<8;i++)
-                                printf(" %2x", buf[i]);
+                            //for(i=0;i<8;i++)
+                                ///printf(" %2x", buf[i]);
                             
-                            printf("\n");
+                            //printf("\n");
                         }
                          // error endpoint or un identified Control
                          // Setup error, stall the device 
                          USBD_SetStall(0);
-						printf("Get_CUR USBD_SetStall(0): %08X\n",g_usbd_PlaySampleRate); 
+						//printf("Get_CUR USBD_SetStall(0): %08X\n",g_usbd_PlaySampleRate); 
                     }
                    
 					// Trigger next Control Out DATA1 Transaction.
@@ -441,10 +441,10 @@ void AUDIO_ClassRequest(void)
                         {
                             uint8_t i;
                             puts("error 2: ");
-                            for(i=0;i<8;i++)
-                                printf(" %2x", buf[i]);
+                            //for(i=0;i<8;i++)
+                                //printf(" %2x", buf[i]);
                             
-                            printf("\n");
+                            //printf("\n");
                         }
                         // Setup error, stall the device 
                         // Unidentify CONTROL

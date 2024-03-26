@@ -299,7 +299,7 @@ int32_t DoVR_get(uint32_t hCSpotter, uint32_t bShowOnly, uint32_t nTimeOut, int 
 				nID = 10;
 				break;
 			default:
-				printf("Unknown cmd\n");
+				//printf("Unknown cmd\n");
 				break;
 		}
 

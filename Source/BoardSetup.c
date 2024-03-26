@@ -485,34 +485,34 @@ void I2C_MasterRx(uint32_t u32Status)
 		{
 			if((g_u8BykData[0] == 0xF0) && (g_u8BykData[1] == 0xF1) && (g_u8BykData[2] == 0xF2) && (g_u8BykData[3] == 0xF3))
 			{
-				printf("Power Off\n");
+				//printf("Power Off\n");
 				g_nPowerOn = FALSE;
 			}
 			else if((g_u8BykData[0] == 0xE0) && (g_u8BykData[1] == 0xE1) && (g_u8BykData[2] == 0xE2) && (g_u8BykData[3] == 0xE3))
 			{
-				printf("Power On\n");
+				//printf("Power On\n");
 				g_nPowerOn = TRUE;
 			}
 			else if((g_u8BykData[0] == 0x10) && (g_u8BykData[1] == 0x11) && (g_u8BykData[2] == 0x12) && (g_u8BykData[3] == 0x13))
 			{
-				printf("STEP1\n");
+				//printf("STEP1\n");
 			}
 			else if((g_u8BykData[0] == 0x20) && (g_u8BykData[1] == 0x21) && (g_u8BykData[2] == 0x22) && (g_u8BykData[3] == 0x23))
 			{
-				printf("STEP2\n");
+				//printf("STEP2\n");
 			}
 			else if((g_u8BykData[0] == 0x30) && (g_u8BykData[1] == 0x31) && (g_u8BykData[2] == 0x32) && (g_u8BykData[3] == 0x33))
 			{
-				printf("STEP3\n");
+				//printf("STEP3\n");
 			}
 			else if((g_u8BykData[0] == 0xA0) && (g_u8BykData[1] == 0xA1) && (g_u8BykData[2] == 0xA2) && (g_u8BykData[3] == 0xA3))
 			{
-				printf("ESP trigger detect\n");
+				//printf("ESP trigger detect\n");
 				g_nMute = TRUE;
 			}
 			else if((g_u8BykData[0] == 0xB0) && (g_u8BykData[1] == 0xB1) && (g_u8BykData[2] == 0xB2) && (g_u8BykData[3] == 0xB3))
 			{
-				printf("ESP IDLE\n");
+				//printf("ESP IDLE\n");
 				g_nMute = FALSE;
 			}
 			
@@ -526,7 +526,7 @@ void I2C_MasterRx(uint32_t u32Status)
 	else
 	{
 		/* TO DO */
-		printf("Rx Status 0x%x is NOT processed\n", u32Status);
+		//printf("Rx Status 0x%x is NOT processed\n", u32Status);
 	}
 		}
 }
@@ -567,7 +567,7 @@ void I2C_MasterTx(uint32_t u32Status)
 #endif
 	else
 	{
-		printf("Tx Status 0x%x is NOT processed\n", u32Status);
+		//printf("Tx Status 0x%x is NOT processed\n", u32Status);
 
 		SYS_Unlock();
 		SYS_ResetChip();
@@ -591,7 +591,7 @@ void esp_i2c_read(void)
 
 void esp_i2c_command(uint8_t cmd)
 {
-	printf("cmd[0x%x]\n", cmd);
+	//printf("cmd[0x%x]\n", cmd);
     s_ESP_I2CCtrl.u8DeviceAddr = 0x28;
     s_ESP_I2CCtrl.pau8Cmd = cmd;
 
@@ -606,7 +606,7 @@ void esp_i2c_command(uint8_t cmd)
 
 	if(!g_nStopRead)
 	{
-		printf("i2c read start\n");
+		//printf("i2c read start\n");
 		esp_i2c_read();
 	}
 }

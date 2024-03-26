@@ -307,9 +307,9 @@ int main(void)
 		{
 	        if (g_nCurrentGroup == 0)
 	        {
-				printf("trigger ready\n");
+				//printf("trigger ready\n");
 	            nRet = DoVR_sep((uint32_t)lpbyBin[0], (uint32_t)lpbyBin[1], 0, 0, NULL/*CheckKeyPress*/);  // Jace. 191107. SPI2_I2S intput/output, PWM, I2C Master working with ESP32
-				printf("trigger nRet: %x\n", nRet);
+				//printf("trigger nRet: %x\n", nRet);
 
 				if(g_nMute) // Jace. 200313. Revision to ctn-rev02-hi-amo. Modify i2c function.
 				{
@@ -336,7 +336,7 @@ int main(void)
 	        else
 	        {
 	            nRet = DoVR_sep((uint32_t)lpbyBin[0], (uint32_t)lpbyBin[2], 0, 800, NULL/*CheckKeyPress*/);  // Jace. 191107. SPI2_I2S intput/output, PWM, I2C Master working with ESP32
-				printf("command nRet: %x\n", nRet);
+				//printf("command nRet: %x\n", nRet);
 	            g_nCurrentGroup = 0;
 
 				PA0 = 1; //trigger led off
