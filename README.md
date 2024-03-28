@@ -1,8 +1,8 @@
 # CTN (Cloud Type Nuvoton) Rev02
-Embedded hi-amo and Cloud amazon alexa.
+- Embedded hi-amo and Cloud amazon alexa.
 <br><br>
 ## Overview
-Nuvoton I94124 project for Embedded VR with Espressif's amazon alexa app based on Nuvoton I94100 Series BSP_CMSIS_V3.05.003 SDK.
+- Nuvoton I94124 project for Embedded VR with Espressif's amazon alexa app based on Nuvoton I94100 Series BSP_CMSIS_V3.05.003 SDK.
 <br><br>
 ## Embedded voice command set & Amazon Alexa & Blynk (for IoT service)
 <a href="https://drive.google.com/file/d/1gKAe7uNhStRsHU9hVC3noCOwbrFDVajo/view?usp=sharing">![Embedded voice command set & Amazon Alexa & Blynk (for IoT service)](https://github.com/luvinland/ctn-rev02-cloud-hi-amo/assets/26864945/f7a7b4fd-3481-424e-afdd-15922706ffb5)</a>
